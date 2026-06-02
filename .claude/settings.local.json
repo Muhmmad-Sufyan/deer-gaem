@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(python -c \"import pygame; print\\(pygame.__version__\\)\")",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "Bash(python -c \"import rich; print\\(rich.__version__\\)\")",
+      "Bash(python -c \"import colorama; print\\('colorama ok'\\)\")"
     ]
   }
 }
