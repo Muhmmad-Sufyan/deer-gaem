@@ -293,32 +293,33 @@ class Crosshair:
 
 # ── Deer ───────────────────────────────────────────────────────────────────────
 class Deer:
-    WALK_CYCLE = 8   # frames per step
-
     def __init__(self, level=1):
         side = random.choice(["left","right"])
-        self.dir = 1 if side=="left" else -1
-        self.x = -80.0 if side=="left" else W+80.0
-        self.y = float(random.randint(H//2+60, H-80))
+        self.dir   = 1 if side=="left" else -1
+        self.x     = -120.0 if side=="left" else W+120.0
+        self.y     = float(random.randint(H//2+70, H-60))
         base_speed = 1.8 + level * 0.35
         self.speed = random.uniform(base_speed, base_speed+1.5)
         self.scale = random.uniform(0.75, 1.25)
-        self.frame = 0
-        self.anim  = 0
+        self.anim  = random.uniform(0, 6.28)  # stagger walk phases
         self.alive = True
         self.dying = False
         self.die_timer = 0
         self.hit_flash = 0
         self.score_val = int(100 * self.scale)
-        self.spotted = random.random() < 0.3   # sometimes stag
         self.pause_timer = 0
-        self.variant = random.randint(0,2)  # 0=doe 1=buck 2=stag
+        self.variant = random.randint(0, 2)   # 0=doe  1=buck  2=stag
 
     @property
     def rect(self):
-        sw = int(80*self.scale)
-        sh = int(55*self.scale)
-        return pygame.Rect(int(self.x)-sw//2, int(self.y)-sh, sw, sh)
+        sc  = self.scale
+        sw  = int(90*sc)
+        sh  = int(58*sc)
+        # body center in screen space (canvas 150w,118h, blit at midbottom)
+        offset_x = int(20*sc) if self.dir == 1 else -int(20*sc)
+        cx = int(self.x) - offset_x
+        cy = int(self.y) - int(90*sc)
+        return pygame.Rect(cx - sw//2, cy, sw, sh)
 
     def update(self):
         if self.dying:
@@ -328,14 +329,13 @@ class Deer:
         if self.pause_timer > 0:
             self.pause_timer -= 1
         else:
-            self.x += self.dir * self.speed
-            self.anim += 1
+            self.x    += self.dir * self.speed
+            self.anim += self.speed * 0.12   # anim tied to walk speed
             if random.random() < 0.003:
-                self.pause_timer = random.randint(20,80)
+                self.pause_timer = random.randint(30, 90)
 
-        self.hit_flash = max(0, self.hit_flash-1)
-        # off-screen
-        if self.x < -150 or self.x > W+150:
+        self.hit_flash = max(0, self.hit_flash - 1)
+        if self.x < -180 or self.x > W+180:
             return True
         return False
 
@@ -346,83 +346,179 @@ class Deer:
             s.set_alpha(alpha)
             surf.blit(s, s.get_rect(midbottom=(int(self.x), int(self.y))))
             return
-
         s = self._render()
         if self.hit_flash > 0:
-            white = pygame.Surface(s.get_size(), pygame.SRCALPHA)
-            white.fill((255,255,255,180))
-            s.blit(white, (0,0), special_flags=pygame.BLEND_RGBA_MULT)
+            wh = pygame.Surface(s.get_size(), pygame.SRCALPHA)
+            wh.fill((255, 255, 255, 160))
+            s.blit(wh, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
         surf.blit(s, s.get_rect(midbottom=(int(self.x), int(self.y))))
 
     def _render(self):
-        sc = self.scale
-        w = int(100*sc)
-        h = int(80*sc)
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        leg_off = int(6 * sc * math.sin(self.anim * 0.25))
+        sc  = self.scale
+        CW  = int(150*sc)
+        CH  = int(118*sc)
+        srf = pygame.Surface((CW, CH), pygame.SRCALPHA)
+
         pausing = self.pause_timer > 0 or self.dying
-        if pausing: leg_off = 0
-        flip = self.dir == -1
 
-        body_col = [(180,130,70),(160,110,55),(200,150,80)][self.variant]
-        belly_col = (220,185,120)
-        nose_col  = (80,50,30)
+        # ── palette ──────────────────────────────────────────────────────────
+        BC   = [(185,135,70),(148,100,50),(198,128,68)][self.variant]
+        DARK = (max(0,BC[0]-42), max(0,BC[1]-36), max(0,BC[2]-22))
+        BELY = (222,198,150)
+        NOSE_C = (50,34,28)
+        HOOF_C = (34,24,14)
 
-        # body
-        bx = w//2
-        by = h - int(25*sc)
-        bw = int(62*sc)
-        bh = int(32*sc)
-        pygame.draw.ellipse(surf, body_col, (bx-bw//2, by-bh//2, bw, bh))
-        pygame.draw.ellipse(surf, belly_col, (bx-bw//3, by-bh//4, bw//2, bh//2))
+        def p(v): return int(v*sc)   # scale helper
 
-        # head
-        neck_x = bx + (bw//2-4 if not flip else -(bw//2-4))
-        neck_y = by - bh//3
-        hx = neck_x + int((18 if not flip else -18)*sc)
-        hy = neck_y - int(14*sc)
-        hw = int(22*sc)
-        hh = int(18*sc)
-        pygame.draw.line(surf, body_col, (neck_x, neck_y), (hx, hy), int(10*sc))
-        pygame.draw.ellipse(surf, body_col, (hx-hw//2, hy-hh//2, hw, hh))
-        pygame.draw.circle(surf, nose_col, (hx + (hw//2-3 if not flip else -(hw//2-3)), hy+2), int(5*sc))
-        pygame.draw.circle(surf, (10,10,10), (hx + (hw//4 if not flip else -hw//4), hy-2), int(3*sc))
+        # ── body bob ─────────────────────────────────────────────────────────
+        bob = 0 if pausing else p(2.4 * math.sin(self.anim * 2.0))
 
-        # antlers for buck/stag
-        if self.variant >= 1:
-            ax = hx
-            ay = hy - hh//2
-            if not flip:
-                for dx,dy in [(-5,-20),(5,-25),(0,-30),(-10,-15)]:
-                    pygame.draw.line(surf, BROWN, (ax,ay), (ax+int(dx*sc),ay+int(dy*sc)), int(3*sc))
-                    if self.variant==2:
-                        pygame.draw.line(surf, BROWN,(ax+int(dx*sc),ay+int(dy*sc)),(ax+int((dx+5)*sc),ay+int((dy-8)*sc)),int(2*sc))
+        # ── body polygon (right-facing) ───────────────────────────────────────
+        # Spine arcs from rump(x≈14) up to withers(x≈88), belly ≈y68
+        body = [
+            (p(14), p(52)+bob),          # rump bottom
+            (p(10), p(36)+bob),          # rump top
+            (p(30), p(24)+bob),          # lower back
+            (p(54), p(20)+bob),          # mid-spine (peak)
+            (p(78), p(25)+bob),          # withers
+            (p(93), p(37)+bob),          # neck base / chest top
+            (p(97), p(52)+bob),          # chest front
+            (p(90), p(68)+bob),          # belly front
+            (p(54), p(72)+bob),          # belly mid
+            (p(22), p(70)+bob),          # belly rear
+        ]
+        belly_hi = [
+            (p(26), p(70)+bob),
+            (p(54), p(74)+bob),
+            (p(83), p(70)+bob),
+            (p(80), p(67)+bob),
+            (p(52), p(70)+bob),
+            (p(24), p(68)+bob),
+        ]
+
+        # ── diagonal gait ─────────────────────────────────────────────────────
+        # Pair A (near-front + far-rear) and Pair B (far-front + near-rear)
+        pA = 0.0 if pausing else math.sin(self.anim)
+        pB = 0.0 if pausing else math.sin(self.anim + math.pi)
+
+        gnd = CH - p(5)    # ground line on canvas
+
+        def draw_leg(ax, ay, phase_v, is_front, is_far):
+            # Two-segment leg: thigh → knee → hoof
+            col_hi = tuple(max(0,c-18) for c in BC) if is_far else DARK
+            UL = p(25)   # upper segment length
+            LL = p(23)   # lower segment length
+
+            # Upper angle from vertical
+            if is_front:
+                ua = 0.10 + phase_v * 0.40
             else:
-                for dx,dy in [(5,-20),(-5,-25),(0,-30),(10,-15)]:
-                    pygame.draw.line(surf, BROWN, (ax,ay), (ax+int(dx*sc),ay+int(dy*sc)), int(3*sc))
-        # ears
-        for ex,ey in [(-hw//3,-hh//2),(hw//3,-hh//2)]:
-            pygame.draw.ellipse(surf, body_col,(hx+int(ex*sc)-int(5*sc),hy+int(ey*sc)-int(8*sc),int(10*sc),int(12*sc)))
+                # rear leg: hock bends backward — characteristic deer look
+                ua = -0.08 + phase_v * 0.34
 
-        # tail
-        tx = bx - (bw//2-4 if not flip else -(bw//2-4))
-        pygame.draw.circle(surf, WHITE, (tx, by-int(5*sc)), int(7*sc))
+            kx = ax + int(math.sin(ua) * UL)
+            ky = ay + int(math.cos(ua) * UL)
 
-        # legs
-        lx_pairs = [int((-18+leg_off)*sc), int((-6+leg_off)*sc),
-                    int((6-leg_off)*sc), int((18-leg_off)*sc)]
-        for i, lx in enumerate(lx_pairs):
-            lo = leg_off if i%2==0 else -leg_off
-            top_x = bx + lx
-            top_y = by + bh//2 - int(5*sc)
-            bot_x = bx + lx + int(lo*0.3)
-            bot_y = h - int(4*sc)
-            pygame.draw.line(surf, body_col, (top_x,top_y),(bot_x, bot_y), int(6*sc))
-            pygame.draw.circle(surf, DBROWN, (bot_x, bot_y), int(4*sc))
+            # Lower segment — rear has backward-angled hock
+            la = ua * 0.55 + (0.10 if is_front else -0.14)
+            hx = kx + int(math.sin(la) * LL)
+            hy = min(ky + int(math.cos(la) * LL), gnd)
 
-        if flip:
-            surf = pygame.transform.flip(surf, True, False)
-        return surf
+            tw = max(2, p(5))
+            lw = max(2, p(4))
+            pygame.draw.line(srf, col_hi, (ax, ay), (kx, ky), tw)
+            pygame.draw.line(srf, HOOF_C, (kx, ky), (hx, hy), lw)
+            # split hoof
+            pygame.draw.ellipse(srf, HOOF_C, (hx-p(5), hy-p(3), p(10), p(5)))
+            pygame.draw.line(srf, (20,14,8), (hx, hy-p(2)), (hx, hy+p(2)), 1)
+
+        # Hip / shoulder attachment points
+        fhx, fhy = p(80), p(68)+bob   # front hip
+        rhx, rhy = p(30), p(68)+bob   # rear hip
+        off = p(4)                     # near/far depth offset
+
+        # ── draw order: far legs → body → near legs → neck/head ──────────────
+
+        # 1. FAR legs (behind body)
+        draw_leg(fhx - off, fhy, pB, True,  True)    # far front
+        draw_leg(rhx - off, rhy, pA, False, True)    # far rear
+
+        # 2. BODY
+        pygame.draw.polygon(srf, BC,   body)
+        pygame.draw.polygon(srf, BELY, belly_hi)
+        pygame.draw.polygon(srf, DARK, body, max(1, p(2)))
+
+        # White rump patch + fluffy tail
+        pygame.draw.ellipse(srf, (228,218,196), (p(8), p(33)+bob, p(15), p(22)))
+        pygame.draw.ellipse(srf, (245,242,234), (p(8), p(27)+bob, p(12), p(11)))
+
+        # 3. NEAR legs (in front of body)
+        draw_leg(fhx + off, fhy, pA, True,  False)   # near front
+        draw_leg(rhx + off, rhy, pB, False, False)   # near rear
+
+        # 4. NECK
+        nb_x, nb_y = p(94), p(38)+bob
+        nt_x, nt_y = p(120), p(15)+bob
+        neck = [
+            (nb_x - p(7), nb_y + p(6)),
+            (nb_x + p(4), nb_y - p(7)),
+            (nt_x + p(5), nt_y + p(7)),
+            (nt_x - p(5), nt_y + p(13)),
+        ]
+        throat = [
+            (nb_x - p(3), nb_y + p(5)),
+            (nb_x + p(2), nb_y - p(4)),
+            (nt_x + p(1), nt_y + p(10)),
+            (nt_x - p(3), nt_y + p(13)),
+        ]
+        pygame.draw.polygon(srf, BC,   neck)
+        pygame.draw.polygon(srf, BELY, throat)
+
+        # 5. HEAD
+        hcx = nt_x + p(7)
+        hcy = nt_y + p(3) + bob
+        HW, HH = p(17), p(13)
+        pygame.draw.ellipse(srf, BC, (hcx-HW//2, hcy-HH//2, HW, HH))
+
+        # Long deer snout
+        snout_x = hcx + HW//2 - p(2)
+        snout_y = hcy - p(4)
+        pygame.draw.ellipse(srf, BC,     (snout_x,        snout_y,       p(22), p(10)))
+        pygame.draw.ellipse(srf, NOSE_C, (snout_x+p(16),  snout_y,       p(7),  p(10)))
+        pygame.draw.circle( srf, DARK,   (snout_x+p(18),  snout_y+p(3)), max(1, p(2)))
+
+        # Eye
+        ex, ey = hcx + p(3), hcy - p(2)
+        pygame.draw.circle(srf, (16, 10, 6),       (ex, ey), p(4))
+        pygame.draw.circle(srf, (215, 195, 165),   (ex-p(1), ey-p(1)), max(1, p(1)))
+
+        # Large whitetail ears
+        for eox, eoy in [(-4, -9), (8, -7)]:
+            ecx, ecy = hcx+p(eox), hcy+p(eoy)
+            pygame.draw.ellipse(srf, BC,            (ecx-p(5), ecy-p(12), p(10), p(16)))
+            pygame.draw.ellipse(srf, (192,155,152), (ecx-p(3), ecy-p(10), p(6),  p(12)))
+
+        # Antlers for buck / stag
+        if self.variant >= 1:
+            ax, ay = hcx - p(2), hcy - HH//2 - p(4)
+            beams = [
+                [(-2,-8), (-5,-18), (-9,-26)],
+                [( 4,-7), ( 9,-17), (14,-25)],
+            ]
+            if self.variant == 2:
+                beams[0] += [(-13,-20), (-7,-13)]
+                beams[1] += [(18,-18),  (12,-11)]
+            for beam in beams:
+                prev = (ax, ay)
+                for dx, dy in beam:
+                    cur = (ax+p(dx), ay+p(dy))
+                    pygame.draw.line(srf, BROWN, prev, cur, max(1, p(3)))
+                    prev = cur
+
+        # Flip for left-facing deer
+        if self.dir == -1:
+            srf = pygame.transform.flip(srf, True, False)
+        return srf
 
 # ── HUD helpers ────────────────────────────────────────────────────────────────
 def draw_rounded_rect(surf, color, rect, radius=12, alpha=None):
