@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import pygame; print\\(pygame.__version__\\)\")",
+      "Bash(pip install *)"
+    ]
+  }
+}
