@@ -114,16 +114,44 @@ MANUFACTURER_DEFAULTS = {
 # VENDOR OUI
 # ═══════════════════════════════════════════════════════════════════════════════
 OUI = {
+    # TP-Link
     "e8:fc:af":"TP-Link","98:da:c4":"TP-Link","f4:f2:6d":"TP-Link","c4:e9:84":"TP-Link",
+    "50:c7:bf":"TP-Link","54:af:97":"TP-Link","b0:be:76":"TP-Link","14:cc:20":"TP-Link",
+    "b4:b0:24":"TP-Link","a0:f3:c1":"TP-Link","d8:0d:17":"TP-Link","ec:08:6b":"TP-Link",
+    # Netgear
     "74:d0:2b":"Netgear","a0:21:b7":"Netgear","28:c6:8e":"Netgear","9c:d3:6d":"Netgear",
+    "20:e5:2a":"Netgear","c0:ff:d4":"Netgear","00:26:f2":"Netgear","84:1b:5e":"Netgear",
+    # Linksys / Cisco
     "b8:a3:86":"Linksys","00:14:bf":"Linksys","c8:d7:19":"Linksys",
+    "00:1c:10":"Cisco","00:1b:d4":"Cisco","d8:67:d9":"Cisco",
+    # D-Link
     "10:62:eb":"D-Link","00:1c:f0":"D-Link","14:d6:4d":"D-Link","1c:7e:e5":"D-Link",
-    "00:1b:2f":"Asus","50:46:5d":"Asus","00:0c:e7":"Asus","30:5a:3a":"Asus",
+    "b0:c5:54":"D-Link","34:08:04":"D-Link","c8:be:19":"D-Link","00:26:5a":"D-Link",
+    # ASUS
+    "00:1b:2f":"ASUS","50:46:5d":"ASUS","00:0c:e7":"ASUS","30:5a:3a":"ASUS",
+    "04:d4:c4":"ASUS","ac:9e:17":"ASUS","74:d0:2b":"ASUS","f8:32:e4":"ASUS",
+    # Huawei
     "c4:04:15":"Huawei","00:e0:fc":"Huawei","28:31:52":"Huawei","f8:01:13":"Huawei",
-    "28:6c:07":"Xiaomi","64:09:80":"Xiaomi","50:8f:4c":"Xiaomi",
+    "50:ec:50":"Huawei","10:1b:54":"Huawei","48:00:31":"Huawei","a4:c6:4f":"Huawei",
+    "18:02:2d":"Huawei","80:fb:06":"Huawei","00:18:82":"Huawei","04:bd:88":"Huawei",
+    # Xiaomi
+    "28:6c:07":"Xiaomi","64:09:80":"Xiaomi","50:8f:4c":"Xiaomi","a8:57:4e":"Xiaomi",
+    "f4:8b:32":"Xiaomi","34:ce:00":"Xiaomi","78:11:dc":"Xiaomi","68:df:dd":"Xiaomi",
+    # Tenda
+    "c8:3a:35":"Tenda","14:75:90":"Tenda","00:b0:0c":"Tenda","e8:65:d4":"Tenda",
+    "18:a6:f7":"Tenda","c8:9f:1a":"Tenda","4c:11:bf":"Tenda","cc:79:cf":"Tenda",
+    "48:ee:0c":"Tenda","d4:76:ea":"Tenda","f4:6d:04":"Tenda",
+    # Ubiquiti
     "18:31:bf":"Ubiquiti","24:a4:3c":"Ubiquiti","00:27:22":"Ubiquiti",
-    "4c:ed:fb":"ZTE","64:13:6c":"ZTE","00:19:15":"ZTE",
-    "a8:57:4e":"Xiaomi","50:ec:50":"Huawei",
+    "78:8a:20":"Ubiquiti","dc:9f:db":"Ubiquiti","44:d9:e7":"Ubiquiti",
+    # ZTE
+    "4c:ed:fb":"ZTE","64:13:6c":"ZTE","00:19:15":"ZTE","5c:a4:8a":"ZTE",
+    "00:e0:4c":"ZTE","bc:76:70":"ZTE",
+    # MikroTik
+    "4c:5e:0c":"MikroTik","cc:2d:e0":"MikroTik","6c:3b:6b":"MikroTik",
+    "b8:69:f4":"MikroTik","48:8f:5a":"MikroTik",
+    # Realtek / generic
+    "00:e0:4c":"Realtek",
 }
 
 def vendor_of(bssid: str) -> str:
@@ -389,65 +417,65 @@ def build_scan_table(nets: list[dict]) -> Table:
 # ═══════════════════════════════════════════════════════════════════════════════
 def show_recon(net: dict):
     _banner()
-    a       = analyse(net)
-    vendor  = vendor_of(net.get("bssid",""))
-    ssid    = net.get("ssid","?")
-    bssid   = net.get("bssid","?")
-    sig     = net.get("signal",0)
-    ch      = net.get("ch",0)
-    auth    = net.get("auth","?")
-    enc     = net.get("enc","?")
-    radio   = net.get("radio","?")
+    a      = analyse(net)
+    vendor = vendor_of(net.get("bssid",""))
+    ssid   = net.get("ssid","?")
+    bssid  = net.get("bssid","?")
+    sig    = net.get("signal",0)
+    ch     = net.get("ch",0)
+    auth   = net.get("auth","?")
+    enc    = net.get("enc","?")
+    radio  = net.get("radio","?")
 
-    # Attack surface assessment
-    vulns=[]
-    if a["grade"]=="F":
-        vulns.append(("[bold red]CRITICAL[/]","No encryption — traffic fully visible"))
+    sig_icons = "▮"*int(sig/20) + "▯"*(5-int(sig/20))
+    freq_str  = "2.4 GHz" if 1<=ch<=14 else ("5 GHz" if 36<=ch<=177 else "?")
+    freq_col  = "cyan" if freq_str=="2.4 GHz" else "magenta"
+    grade_col = a["color"]
+
+    # Attack surface — plain (sev, desc) strings, no embedded markup
+    vulns = []
+    if a["grade"] == "F":
+        vulns.append(("CRITICAL","bold red","No encryption — all traffic visible in plaintext"))
     if "TKIP" in enc.upper():
-        vulns.append(("[yellow]HIGH[/]","TKIP deprecated — MICHAEL/TKIP attacks possible"))
-    if a["grade"]=="C":
-        vulns.append(("[yellow]MEDIUM[/]","WPA v1 — legacy, dictionary attacks feasible"))
-    if a["grade"] in ("A","A+","B"):
-        vulns.append(("[green]LOW[/]","WPA2/3 — primary attack vector: password guessing"))
+        vulns.append(("HIGH","yellow","TKIP deprecated — vulnerable to MICHAEL attack"))
+    if a["grade"] == "C":
+        vulns.append(("MEDIUM","yellow","WPA v1 — legacy, upgrade to WPA2/3 recommended"))
+    if a["grade"] in ("A","A+","B+","B"):
+        vulns.append(("LOW","green","WPA2/3 — primary attack vector is weak password"))
     if ssid == "<Hidden>":
-        vulns.append(("[cyan]INFO[/]","Hidden SSID — can be revealed by passive monitoring"))
+        vulns.append(("INFO","cyan","Hidden SSID — can be revealed by beacon monitoring"))
     if sig >= 85:
-        vulns.append(("[cyan]INFO[/]",f"Strong signal ({sig}%) — device likely close by"))
+        vulns.append(("INFO","cyan",f"Very strong signal ({sig}%) — likely nearby device"))
 
-    mfr_defaults = MANUFACTURER_DEFAULTS.get(vendor,[])
+    mfr_defaults = MANUFACTURER_DEFAULTS.get(vendor, [])
 
-    content = Text()
-    content.append(f"\n  TARGET SSID       ", "bold bright_green")
-    content.append(f"{ssid}\n", "bold cyan")
-    content.append(f"  BSSID             ", "bold bright_green")
-    content.append(f"{bssid}\n", "cyan")
-    content.append(f"  VENDOR            ", "bold bright_green")
-    content.append(f"{vendor}\n", "cyan")
-    content.append(f"  SIGNAL            ", "bold bright_green")
-    content.append(f"{sig}% {'▮'*int(sig/20)}{'▯'*(5-int(sig/20))}\n", "cyan")
-    content.append(f"  CHANNEL           ", "bold bright_green")
-    content.append(f"{ch}   {freq_tag(ch)}\n", "cyan")
-    content.append(f"  RADIO             ", "bold bright_green")
-    content.append(f"{radio}\n", "cyan")
-    content.append(f"  AUTH              ", "bold bright_green")
-    content.append(f"{auth}\n", a["color"])
-    content.append(f"  ENCRYPTION        ", "bold bright_green")
-    content.append(f"{enc}\n", a["color"])
-    content.append(f"  SECURITY GRADE    ", "bold bright_green")
-    content.append(f"{a['grade']}  {a['label']}\n\n", a["color"])
-
-    content.append("  ATTACK SURFACE\n", "bold red")
-    for sev, desc in vulns:
-        content.append("  ● ", "dim red")
-        content.append(sev+" ", "")
-        content.append(desc+"\n", "dim")
+    # Build content as a markup string — rich WILL parse this correctly in Panel
+    lines = [
+        "",
+        f"  [bold bright_green]TARGET SSID    [/]  [bold cyan]{ssid}[/]",
+        f"  [bold bright_green]BSSID          [/]  [cyan]{bssid}[/]",
+        f"  [bold bright_green]VENDOR         [/]  [cyan]{vendor}[/]",
+        f"  [bold bright_green]SIGNAL         [/]  [cyan]{sig}%  {sig_icons}[/]",
+        f"  [bold bright_green]CHANNEL        [/]  [cyan]{ch}[/]   [{freq_col}]{freq_str}[/{freq_col}]",
+        f"  [bold bright_green]RADIO          [/]  [cyan]{radio}[/]",
+        f"  [bold bright_green]AUTH           [/]  [{grade_col}]{auth}[/{grade_col}]",
+        f"  [bold bright_green]ENCRYPTION     [/]  [{grade_col}]{enc}[/{grade_col}]",
+        f"  [bold bright_green]SECURITY GRADE [/]  [{grade_col}]{a['grade']}  {a['label']}[/{grade_col}]",
+        "",
+        "  [bold red]ATTACK SURFACE[/bold red]",
+    ]
+    for sev, col, desc in vulns:
+        lines.append(f"  [dim red]●[/]  [{col}]{sev}[/{col}]  [dim]{desc}[/dim]")
 
     if mfr_defaults:
-        content.append(f"\n  MANUFACTURER DEFAULTS ({vendor})\n", "bold yellow")
-        for pw in mfr_defaults[:5]:
-            content.append(f"     → {pw}\n", "yellow")
+        lines.append("")
+        lines.append(f"  [bold yellow]MANUFACTURER DEFAULTS ({vendor})[/bold yellow]")
+        for pw in mfr_defaults[:6]:
+            lines.append(f"  [dim yellow]  →[/dim yellow]  [yellow]{pw}[/yellow]")
+    lines.append("")
 
-    console.print(Panel(content,
+    console.print(Panel(
+        "\n".join(lines),
         title=f"[bold red]  RECON :  {ssid}  [/bold red]",
         border_style="red", padding=(0,2)))
     console.print()
